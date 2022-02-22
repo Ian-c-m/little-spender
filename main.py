@@ -1,8 +1,8 @@
-import logging, disnake, config, tokens
+import logging, disnake, config, tokens, random
 from disnake.ext import commands
 
 #TODO: Replace this with the one below once your code is live. Once live, changes to commands can take up to 1 hour to sync.
-bot = commands.Bot(test_guilds = [config.test_guild_id])
+bot = commands.Bot(test_guilds = [config.test_guild_id, config.live_guild_id])
 #bot = commands.Bot()
 
 
@@ -13,7 +13,7 @@ def setup_logging():
             format = "%(asctime)s %(levelname)-8s %(message)s",
             filename='bot.log',
             encoding='utf-8',
-            filemode='w',
+            filemode='a',
             level = config.logging_level,
             datefmt="%Y-%m-%d %H:%M:%S")
         logging.info("-----------")
@@ -33,10 +33,17 @@ async def on_ready():
 
 
 #An example slash command, will respond World when you use /hello
-@bot.slash_command(description = "Responds with 'World'")
+@bot.slash_command(description = "Says hello to you.")
 async def hello(inter):
 
-    await inter.send("World")
+    try:
+        greeting = random.choice(config.greetings)
+        await inter.send(f"{greeting} {inter.author.mention}!")
+        logging.info(f"Said hello to {inter.author}")
+    
+    except Exception as e:
+        logging.exception(f"Failed to say hello to {inter.author}. {e}")
+        await inter.send("This action failed, please try again.")
     
     
 
@@ -51,7 +58,7 @@ async def roles(inter, role: disnake.Role, remove: bool):
         try:
             await inter.author.remove_roles(role, reason = "Removed via slash command", atomic = False)
             logging.info(f"Succesfully removed {role} role from {inter.author}.")
-            await inter.send(f"Succesfully removed {role} role.")
+            await inter.send(f"Succesfully removed {role} role from you.")
             
         
         except disnake.errors.Forbidden as e:
@@ -65,6 +72,7 @@ async def roles(inter, role: disnake.Role, remove: bool):
             await inter.send("This action failed, please try again.")
 
 
+
     elif remove == False:
     #the member wants to add the role
 
@@ -73,17 +81,17 @@ async def roles(inter, role: disnake.Role, remove: bool):
         try:
             await inter.author.add_roles(role, reason = "Added via slash command", atomic = False)
             logging.info(f"Succesfully added {role} role from {inter.author}.")
-            await inter.send(f"Succesfully added {role} role.")
+            await inter.send(f"Succesfully gave you the {role} role.")
             
         
         except disnake.errors.Forbidden as e:
             #bot didn't have sufficient permissions to add role.
-            logging.exception(f"Could not add {role} from {inter.author}, invalid permissions.")
+            logging.exception(f"Could not add {role} to {inter.author}, invalid permissions.")
             await inter.send("This action failed, please try again.")
         
         except Exception as e:
             #generic error
-            logging.exception(f"Could not add {role} from {inter.author}. {e}.")
+            logging.exception(f"Could not add {role} to {inter.author}. {e}.")
             await inter.send("This action failed, please try again.")
 
 
