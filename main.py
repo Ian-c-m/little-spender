@@ -43,7 +43,7 @@ async def hello(inter):
     
     except Exception as e:
         logging.exception(f"Failed to say hello to {inter.author}. {e}")
-        await inter.send("This action failed, please try again.")
+        await inter.send("This action failed, please try again.", ephemeral = True)
     
     
 
@@ -58,18 +58,18 @@ async def roles(inter, role: disnake.Role, remove: bool):
         try:
             await inter.author.remove_roles(role, reason = "Removed via slash command", atomic = False)
             logging.info(f"Succesfully removed {role} role from {inter.author}.")
-            await inter.send(f"Succesfully removed {role} role from you.")
+            await inter.send(f"Succesfully removed {role} role from you.", ephemeral = True)
             
         
         except disnake.errors.Forbidden as e:
             #bot didn't have sufficient permissions to remove role.
             logging.exception(f"Could not remove {role} from {inter.author}, invalid permissions.")
-            await inter.send("This action failed, please try again.")
+            await inter.send("This action failed, please try again.", ephemeral = True)
         
         except Exception as e:
             #generic error
             logging.exception(f"Could not remove {role} from {inter.author}. {e}")
-            await inter.send("This action failed, please try again.")
+            await inter.send("This action failed, please try again.", ephemeral = True)
 
 
 
@@ -81,18 +81,18 @@ async def roles(inter, role: disnake.Role, remove: bool):
         try:
             await inter.author.add_roles(role, reason = "Added via slash command", atomic = False)
             logging.info(f"Succesfully added {role} role from {inter.author}.")
-            await inter.send(f"Succesfully gave you the {role} role.")
+            await inter.send(f"Succesfully gave you the {role} role.", ephemeral = True)
             
         
         except disnake.errors.Forbidden as e:
             #bot didn't have sufficient permissions to add role.
             logging.exception(f"Could not add {role} to {inter.author}, invalid permissions.")
-            await inter.send("This action failed, please try again.")
+            await inter.send("This action failed, please try again.", ephemeral = True)
         
         except Exception as e:
             #generic error
             logging.exception(f"Could not add {role} to {inter.author}. {e}.")
-            await inter.send("This action failed, please try again.")
+            await inter.send("This action failed, please try again.", ephemeral = True)
 
 
 
