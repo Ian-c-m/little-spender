@@ -1,31 +1,33 @@
-import logging, disnake, config, tokens, random
+import disnake, config, tokens, random, sys, logging
 from disnake.ext import commands
 from datetime import datetime
 
-bot = commands.Bot(test_guilds = [config.test_guild_id, config.live_guild_id])
+#updates commands in given guild only, as this is a private bot.
+bot = commands.InteractionBot(test_guilds = [config.live_guild_id])
 
 
-#sets up logging using the standard logging library. Configure the level in the config.py file.
-def setup_logging():
+#sets up log using the standard log library.
+def setup_log():
     try:
         logging.basicConfig(
             format = "%(asctime)s %(levelname)-8s %(message)s",
-            filename='bot.log',
+            filename='helper-bot.log',
             encoding='utf-8',
             filemode='a',
-            level = config.logging_level,
+            level = config.log_level,
             datefmt="%Y-%m-%d %H:%M:%S")
         logging.info("-----------")
-        #print('Setup logging correctly.')
 
     except Exception as e:
-        print(f"ERROR - failed to setup logging - {e}") 
+        print(f"ERROR - failed to setup log - {e}") 
+        sys.exit()
 
 
 
-#Alerts once the bot is ready to receive commands, and sets the "Playing..." status.
+#Logs once the bot is ready to receive commands, and sets the "Playing..." status.
 @bot.event
 async def on_ready():
+
     now = datetime.now()
     now = now.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -33,20 +35,23 @@ async def on_ready():
         game = disnake.Game(config.status)
         await bot.change_presence(status = disnake.Status.online, activity = game)        
 
-    except Exception as e:
-        print(f"{now} WARNING     failed to set status correctly.")    
+    except Exception as e:    
+        logging.warning(f"Failed to set status correctly. {e}")
 
-    print(f"{now} INFO     {config.bot_name} ready")     
+    
+    logging.info(f"{config.bot_name} ready.")     
 
 
-#An example slash command, will respond World when you use /hello
+
+#An example slash command, will respond with a greeting when you use /hello
 @bot.slash_command(description = "Says hello to you.")
 async def hello(inter):
 
+    
     try:
         greeting = random.choice(config.greetings)
         await inter.send(f"{greeting} {inter.author.mention}!")
-        logging.info(f"Said hello to {inter.author}")
+        logging.debug(f"Said hello to {inter.author}")
         return
     
     except Exception as e:
@@ -55,26 +60,32 @@ async def hello(inter):
         return
     
     
-
+#adds or removes a role when using the command. Used to access areas of the support server by bot/role.
 @bot.slash_command(description = "Adds/removes a role.")
-async def roles(inter, role: disnake.Role, remove: bool):
+async def roles(
+    inter, 
+    role: disnake.Role = commands.Param(description="What role you want. You can only pick a 'user' role."), 
+    remove: bool = commands.param(default=False, description="Whether to remove the role or not.")
+    ):
+
 
     if remove == True:
     #the member wants to remove the role
 
         logging.info(f"{inter.author} tried to remove {role} role.")
-        #TODO: do we care if the user was not approved for limited roles and tried to remove it?
+
         try:
+            #remove the role
             await inter.author.remove_roles(role, reason = "Removed via slash command", atomic = False)
             logging.info(f"Succesfully removed {role} role from {inter.author}.")
             await inter.send(f"Succesfully removed {role} role from you.", ephemeral = True)
-            return
-            
+            return            
         
         except disnake.errors.Forbidden as e:
             #bot didn't have sufficient permissions to remove role.
-            logging.exception(f"Could not remove {role} from {inter.author}, invalid permissions.")
-            await inter.send("This action failed, please try again.", ephemeral = True)
+            #Usually because the user was asking for a non-user role
+            logging.info(f"Could not remove {role} from {inter.author}, invalid permissions.")
+            await inter.send("Sorry, you're not authorised to remove that role.", ephemeral = True)
             return
         
         except Exception as e:
@@ -90,28 +101,30 @@ async def roles(inter, role: disnake.Role, remove: bool):
     
         logging.info(f"{inter.author} tried to add {role} role.")
 
-
-
         #only approved users can have the server starter role
         if role.name == config.server_starter_name and inter.author.id not in config.approved_server_starter_users:
-            #if we're here, then the member tried to add the server starter role but wasn't in the approved users list
-            logging.warning(f"{inter.author} tried to add the server starter role but wasn't authorised.")
+
+            #the member tried to add the server starter role but wasn't in the approved users list
+            logging.info(f"{inter.author} tried to add the server starter role but wasn't in the approved user list.")
             await inter.send("Sorry, you're not authorised to have that role.", ephemeral = True)
             return
 
 
         elif role.name == config.server_starter_name and inter.author.id in config.approved_server_starter_users:
-            #if we're here then the member tried to add the server starter role and WAS in the approved users list
+
+            #the member tried to add the server starter role and WAS in the approved users list
             try:
+                #added the role to the member
                 await inter.author.add_roles(role, reason = "Added via slash command", atomic = False)
-                logging.info(f"Succesfully added {role} role from {inter.author}.")
+                logging.info(f"Succesfully added {role} role to {inter.author}.")
                 await inter.send(f"Succesfully gave you the {role} role.", ephemeral = True)
                 return
             
             except disnake.errors.Forbidden as e:
                 #bot didn't have sufficient permissions to add role.
-                logging.exception(f"Could not add {role} to {inter.author}, invalid permissions.")
-                await inter.send("This action failed, please try again.", ephemeral = True)
+                #Usually because the user was asking for a non-user role
+                logging.info(f"Could not add {role} to {inter.author}, invalid permissions.")
+                await inter.send("Sorry, you're not authorised to have that role.", ephemeral = True)
                 return
         
             except Exception as e:
@@ -125,15 +138,15 @@ async def roles(inter, role: disnake.Role, remove: bool):
             #adding other generic roles.
             try:
                 await inter.author.add_roles(role, reason = "Added via slash command", atomic = False)
-                logging.info(f"Succesfully added {role} role from {inter.author}.")
+                logging.info(f"Succesfully added {role} role to {inter.author}.")
                 await inter.send(f"Succesfully gave you the {role} role.", ephemeral = True)
-                return
-                
+                return                
             
             except disnake.errors.Forbidden as e:
                 #bot didn't have sufficient permissions to add role.
-                logging.exception(f"Could not add {role} to {inter.author}, invalid permissions.")
-                await inter.send("This action failed, please try again.", ephemeral = True)
+                #Usually because the user was asking for a non-user role
+                logging.info(f"Could not add {role} to {inter.author}, invalid permissions.")
+                await inter.send("Sorry, you're not authorised to have that role.", ephemeral = True)
                 return
             
             except Exception as e:
@@ -148,5 +161,7 @@ async def roles(inter, role: disnake.Role, remove: bool):
 
 
 if __name__ == "__main__":
-    setup_logging()
+    #setup the logger module
+    setup_log()
+    #run the main bot program
     bot.run(tokens.live_token)
