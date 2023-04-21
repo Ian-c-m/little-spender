@@ -1,167 +1,122 @@
-import disnake, config, tokens, random, sys, logging
+import disnake, config, tokens, sys, logging
 from disnake.ext import commands
 from datetime import datetime
 
 #updates commands in given guild only, as this is a private bot.
-bot = commands.InteractionBot(test_guilds = [config.live_guild_id])
+bot = commands.InteractionBot(test_guilds = [config.test_guild_id], intents=disnake.Intents.all())
 
 
-#sets up log using the standard log library.
-def setup_log():
+#########################################################################################
+#    STARTUP FUNCTIONS BELOW
+
+#sets up logging using the standard logging library. Configure the level in the config.py file.
+def setup_logging():
     try:
         logging.basicConfig(
             format = "%(asctime)s %(levelname)-8s %(message)s",
-            filename='helper-bot.log',
-            encoding='utf-8',
-            filemode='a',
-            level = config.log_level,
+            filename=config.log_file,
+            encoding="utf-8",
+            filemode=config.logging_filemode,
+            level = config.logging_level,
             datefmt="%Y-%m-%d %H:%M:%S")
         logging.info("-----------")
+        
 
     except Exception as e:
-        print(f"ERROR - failed to setup log - {e}") 
+        print(f"ERROR - failed to setup logging - {e}")
         sys.exit()
 
-
-
-#Logs once the bot is ready to receive commands, and sets the "Playing..." status.
+#Alerts once the bot is ready to receive commands
 @bot.event
 async def on_ready():
-
     now = datetime.now()
     now = now.strftime("%Y-%m-%d %H:%M:%S")
-
     try:
+        
         game = disnake.Game(config.status)
-        await bot.change_presence(status = disnake.Status.online, activity = game)        
+        await bot.change_presence(status = disnake.Status.online, activity = game)
+        logging.info(f"{config.bot_name} ready.")
+        #print(f"{config.bot_name} ready.")
+        
 
-    except Exception as e:    
+    except Exception as e:
         logging.warning(f"Failed to set status correctly. {e}")
 
-    
-    logging.info(f"{config.bot_name} ready.")     
 
 
 
-#An example slash command, will respond with a greeting when you use /hello
-@bot.slash_command(description = "Says hello to you.")
-async def hello(inter):
 
-    
-    try:
-        greeting = random.choice(config.greetings)
-        await inter.send(f"{greeting} {inter.author.mention}!")
-        logging.debug(f"Said hello to {inter.author}")
-        return
-    
-    except Exception as e:
-        logging.exception(f"Failed to say hello to {inter.author}. {e}")
-        await inter.send("This action failed, please try again.", ephemeral = True)
-        return
-    
-    
-#adds or removes a role when using the command. Used to access areas of the support server by bot/role.
-@bot.slash_command(description = "Adds/removes a role.")
-async def roles(
-    inter, 
-    role: disnake.Role = commands.Param(description="What role you want. You can only pick a 'user' role."), 
-    remove: bool = commands.param(default=False, description="Whether to remove the role or not.")
-    ):
+#########################################################################################
+#    MAIN FUNCTIONS BELOW
+
+#Use the new UI buttons to assign roles
+@bot.event
+async def on_message(message: disnake.Message):
+
+    if message.content == "!role" and message.author.id == 195617048569708545:
+        space = disnake.ui.Button(label=config.spacebot_role, emoji="🚀")
+        confession = disnake.ui.Button(label=config.confession_role, emoji="💭")
+        detective = disnake.ui.Button(label=config.alt_text_role, emoji="🔍")
+
+        role_view = disnake.ui.View()
+        role_view.add_item(space)
+        role_view.add_item(confession)
+        role_view.add_item(detective)
+
+        await message.channel.send("Please select a role to gain access to the channels for that bot.", view = role_view)
+        logging.info(f"Added a role selection message to {message.channel}")
 
 
-    if remove == True:
-    #the member wants to remove the role
+@bot.event
+async def on_message_interaction(inter: disnake.MessageInteraction):
 
-        logging.info(f"{inter.author} tried to remove {role} role.")
+    for role in inter.guild.roles:
+        if role.name == config.spacebot_role:
+            spacebot_role = role
 
-        try:
-            #remove the role
-            await inter.author.remove_roles(role, reason = "Removed via slash command", atomic = False)
-            logging.info(f"Succesfully removed {role} role from {inter.author}.")
-            await inter.send(f"Succesfully removed {role} role from you.", ephemeral = True)
-            return            
-        
-        except disnake.errors.Forbidden as e:
-            #bot didn't have sufficient permissions to remove role.
-            #Usually because the user was asking for a non-user role
-            logging.info(f"Could not remove {role} from {inter.author}, invalid permissions.")
-            await inter.send("Sorry, you're not authorised to remove that role.", ephemeral = True)
-            return
-        
-        except Exception as e:
-            #generic error
-            logging.exception(f"Could not remove {role} from {inter.author}. {e}")
-            await inter.send("This action failed, please try again.", ephemeral = True)
-            return
+        if role.name == config.confession_role:
+            confession_role = role
+
+        if role.name == config.alt_text_role:
+            alt_text_role = role
 
 
 
-    elif remove == False:
-    #the member wants to add the role
-    
-        logging.info(f"{inter.author} tried to add {role} role.")
-
-        #only approved users can have the server starter role
-        if role.name == config.server_starter_name and inter.author.id not in config.approved_server_starter_users:
-
-            #the member tried to add the server starter role but wasn't in the approved users list
-            logging.info(f"{inter.author} tried to add the server starter role but wasn't in the approved user list.")
-            await inter.send("Sorry, you're not authorised to have that role.", ephemeral = True)
-            return
-
-
-        elif role.name == config.server_starter_name and inter.author.id in config.approved_server_starter_users:
-
-            #the member tried to add the server starter role and WAS in the approved users list
-            try:
-                #added the role to the member
-                await inter.author.add_roles(role, reason = "Added via slash command", atomic = False)
-                logging.info(f"Succesfully added {role} role to {inter.author}.")
-                await inter.send(f"Succesfully gave you the {role} role.", ephemeral = True)
-                return
-            
-            except disnake.errors.Forbidden as e:
-                #bot didn't have sufficient permissions to add role.
-                #Usually because the user was asking for a non-user role
-                logging.info(f"Could not add {role} to {inter.author}, invalid permissions.")
-                await inter.send("Sorry, you're not authorised to have that role.", ephemeral = True)
-                return
-        
-            except Exception as e:
-                #generic error
-                logging.exception(f"Could not add {role} to {inter.author}. {e}.")
-                await inter.send("This action failed, please try again.", ephemeral = True)
-                return
-
-
+    if inter.component.label == config.spacebot_role:     
+        if spacebot_role in inter.author.roles:
+            await inter.author.remove_roles(spacebot_role, reason="Self assigned from role select options.")
+            await inter.send(f"Removed {spacebot_role.name} from you", ephemeral=True)
+            logging.info(f"Removed {spacebot_role.name} from {inter.author}")
         else:
-            #adding other generic roles.
-            try:
-                await inter.author.add_roles(role, reason = "Added via slash command", atomic = False)
-                logging.info(f"Succesfully added {role} role to {inter.author}.")
-                await inter.send(f"Succesfully gave you the {role} role.", ephemeral = True)
-                return                
-            
-            except disnake.errors.Forbidden as e:
-                #bot didn't have sufficient permissions to add role.
-                #Usually because the user was asking for a non-user role
-                logging.info(f"Could not add {role} to {inter.author}, invalid permissions.")
-                await inter.send("Sorry, you're not authorised to have that role.", ephemeral = True)
-                return
-            
-            except Exception as e:
-                #generic error
-                logging.exception(f"Could not add {role} to {inter.author}. {e}.")
-                await inter.send("This action failed, please try again.", ephemeral = True)
-                return
+            await inter.author.add_roles(spacebot_role, reason="Self assigned from role select options.")
+            await inter.send(f"Added {spacebot_role.name} to you", ephemeral=True)
+            logging.info(f"Removed {spacebot_role.name} from {inter.author}")
 
+    if inter.component.label == config.confession_role:
+        if confession_role in inter.author.roles:
+            await inter.author.remove_roles(confession_role, reason="Self assigned from role select options.")
+            await inter.send(f"Removed {confession_role.name} from you", ephemeral=True)
+            logging.info(f"Removed {confession_role.name} from {inter.author}")
+        else:
+            await inter.author.add_roles(confession_role, reason="Self assigned from role select options.")
+            await inter.send(f"Added {confession_role.name} to you", ephemeral=True)
+            logging.info(f"Removed {confession_role.name} from {inter.author}")
 
-    
+    if inter.component.label == config.alt_text_role:
+        if alt_text_role in inter.author.roles:
+            await inter.author.remove_roles(alt_text_role, reason="Self assigned from role select options.")
+            await inter.send(f"Removed {alt_text_role.name} from you", ephemeral=True)
+            logging.info(f"Removed {alt_text_role.name} from {inter.author}")
+        else:
+            await inter.author.add_roles(alt_text_role, reason="Self assigned from role select options.")
+            await inter.send(f"Added {alt_text_role.name} to you", ephemeral=True)
+            logging.info(f"Removed {alt_text_role.name} from {inter.author}")
+
 
 
 
 if __name__ == "__main__":
     #setup the logger module
-    setup_log()
+    setup_logging()
     #run the main bot program
-    bot.run(tokens.live_token)
+    bot.run(tokens.discord_test_token)
