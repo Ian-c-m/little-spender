@@ -1,6 +1,6 @@
 # Little Spender
 
-![v0.1.4](https://img.shields.io/badge/version-v0.1.4-blue)
+![version](https://img.shields.io/badge/version-v0.2.0-blue)
 
 A custom bot made by Big Spender for their Discord server.
 
